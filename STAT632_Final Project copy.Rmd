@@ -1,0 +1,248 @@
+---
+title: "STAT632_Final Project"
+author: "John Carter, Ashley Cox, Yi Li"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+```{r}
+crab <- read.csv("CrabAgePrediction.csv")
+summary(crab)
+library(dplyr)
+crab <- filter(crab,Height>0&Height<1)
+crab$Sex <- as.factor(crab$Sex)
+
+#Count Sex and Calculate the proportion
+table(crab$Sex)
+round(1224/(1224+1231+1434),2)
+round(1231/(1224+1231+1434),2)
+round(1434/(1224+1231+1434),2)
+
+#Calculation for Numeric variables
+round(sapply(crab,mean),2)
+round(sapply(crab[,2:9],sd),2)
+
+#Data Exploration with Scatter plot and box plot
+pairs(Age~Length+Diameter+Height+Weight+Shucked.Weight+Viscera.Weight+Shell.Weight,crab)
+boxplot(Age~Sex,crab,ylab="Age(months)")
+
+#Check distribution of response 
+hist(crab$Age)
+
+#Corrlation Coefficients
+cor(crab[,-1])
+
+#Model 1
+lm1 <- lm(Age~.,crab)
+summary(lm1)
+
+#Assumption check for Model 1
+par(mfrow=c(2,2))
+plot(lm1,1:2)
+shapiro.test(resid(lm1))
+library(car)
+ncvTest(lm1)
+library(faraway)
+vif(lm1)
+
+#Data Transformation
+pacman::p_load(MASS,car)
+boxcox(lm1,lambda=seq(-0.7,0.7,by=0.05))
+summary(powerTransform(lm1))
+
+#Model 2
+lm2 <- lm(log(Age)~.,crab)
+summary(lm2)
+vif(lm2)
+
+#Assumption check for Model 2
+par(mfrow=c(2,2))
+plot(lm1,1:2)
+plot(lm2,1:2)
+shapiro.test(resid(lm2))
+ncvTest(lm2)
+
+#Standardized Residual vs Predictors
+par(mfrow=c(2,4))
+plot(crab$Sex,rstandard(lm2),xlab="Sex",ylab="Standardized Residual")
+plot(crab$Length ,rstandard(lm2),xlab="Length",ylab="Standardized Residual")
+plot(crab$Diameter,rstandard(lm2),xlab="Diameter",ylab="Standardized Residual")
+plot(crab$Height,rstandard(lm2),xlab="Height",ylab="Standardized Residual")
+plot(crab$Weight,rstandard(lm2),xlab="Weight",ylab="Standardized Residual")
+plot(crab$Shucked.Weight,rstandard(lm2),xlab="Shucked.Weight",ylab="Standardized Residual")
+plot(crab$Viscera.Weight,rstandard(lm2),xlab="Viscera.Weight",ylab="Standardized Residual")
+plot(crab$Shell.Weight,rstandard(lm2),xlab="Shell.Weight",ylab="Standardized Residual")
+      
+#Outliers and High Leverage Points
+plot(hatvalues(lm2),rstandard(lm2))
+abline(v=0.04,lty=2,col="red")
+abline(h=-4.2,lty=2,col="blue")
+ind <- which(rstandard(lm2)<(-4.2)|hatvalues(lm2)>0.05)
+crab[ind,]
+
+#Cross validation with 65% training data
+set.seed(999) # set seed for reproducibility
+n <- nrow(crab); n
+floor(0.65*n)
+# randomly sample 65% of rows for training set
+train <- sample(1:n,2527)
+# fit model using training data
+lm_train <- lm(log(Age) ~., data=crab,subset = train)
+summary(lm_train)
+
+#Some Predictions
+predict(lm2, data.frame(Sex="M",Length=1.2625,Diameter=1.0000,Height=0.3875,Weight=23.8561043,Shucked.Weight=7.6968892,Viscera.Weight=5.0320362,Shell.Weight=8.0796075),interval="prediction")
+exp(2.478412)
+
+predict(lm2, data.frame(Sex="I",Length=1.2625,Diameter=0.9750,Height=0.4625,Weight=17.3640688,Shucked.Weight=7.5693165,Viscera.Weight=4.0256290,Shell.Weight=4.8761140),interval="prediction")
+exp(2.293932)
+
+predict(lm2, data.frame(Sex="F",Length=1.3125,Diameter=1.0250,Height=0.3375,Weight=20.0856208,Shucked.Weight=8.3064035,Viscera.Weight=4.3232988,Shell.Weight=6.6621325),interval="prediction")
+exp(2.329729)
+
+#Subsetting dataset by Sex
+fcrab <- subset(crab,Sex=="F")
+mcrab <- subset(crab,Sex=="M")
+icrab <- subset(crab,Sex=="I")
+fmcrab <- subset(crab,Sex=="F"|Sex=="M")
+
+#Female subset model
+pairs(Age~Length+Diameter+Height+Weight+Shucked.Weight+Viscera.Weight+Shell.Weight,fcrab)
+lm3 <- lm(Age~Length+Diameter+Height+Weight+Shucked.Weight+Viscera.Weight+Shell.Weight,fcrab)
+summary(lm3)
+pacman::p_load(MASS,car)
+boxcox(lm3,lambda=seq(-1.5,0.6,by=0.05))
+summary(powerTransform(lm3))
+lm4 <- lm(Age^(-0.5)~Length+Diameter+Height+Weight+Shucked.Weight+Viscera.Weight+Shell.Weight,fcrab)
+summary(lm4)
+par(mfrow=c(2,2))
+plot(lm3,1:2)
+plot(lm4,1:2)
+shapiro.test(resid(lm4))
+#library(car)
+ncvTest(lm4)
+vif(lm4)
+
+#Male Subset Model
+pairs(Age~Length+Diameter+Height+Weight+Shucked.Weight+Viscera.Weight+Shell.Weight,mcrab)
+lm5 <- lm(Age~Length+Diameter+Height+Weight+Shucked.Weight+Viscera.Weight+Shell.Weight,mcrab)
+summary(lm5)
+pacman::p_load(MASS,car)
+boxcox(lm5,lambda=seq(-0.7,0.7,by=0.05))
+summary(powerTransform(lm5))
+lm6 <- lm(log(Age)~Length+Diameter+Height+Weight+Shucked.Weight+Viscera.Weight+Shell.Weight,mcrab)
+summary(lm6)
+par(mfrow=c(2,2))
+plot(lm5,1:2)
+plot(lm6,1:2)
+shapiro.test(resid(lm6))
+ncvTest(lm6)
+
+#Reduced Male Subset Model
+lm7 <- lm(log(Age)~Diameter+Height+Weight+Shucked.Weight+Viscera.Weight+Shell.Weight,mcrab)
+summary(lm7)
+plot(lm7,1:2)
+shapiro.test(resid(lm7))
+ncvTest(lm7)
+
+#Indeterminate Subset Model
+pairs(Age~Length+Diameter+Height+Weight+Shucked.Weight+Viscera.Weight+Shell.Weight,icrab)
+lm8 <- lm(Age~Length+Diameter+Height+Weight+Shucked.Weight+Viscera.Weight+Shell.Weight,icrab)
+summary(lm8)
+pacman::p_load(MASS,car)
+boxcox(lm8,lambda=seq(-0.5,0.7,by=0.05))
+summary(powerTransform(lm8))
+lm9 <- lm(log(Age)~Length+Diameter+Height+Weight+Shucked.Weight+Viscera.Weight+Shell.Weight,icrab)
+summary(lm9)
+par(mfrow=c(2,2))
+plot(lm8,1:2)
+plot(lm9,1:2)
+shapiro.test(resid(lm9))
+ncvTest(lm9)
+
+#Reduced Indeterminate Subset Model
+lm10 <- lm(log(Age)~Diameter+Height+Weight+Shucked.Weight+Viscera.Weight+Shell.Weight,icrab)
+summary(lm10)
+plot(lm10,1:2)
+shapiro.test(resid(lm10))
+ncvTest(lm10)
+
+#Female and Male subset Model
+pairs(Age~Length+Diameter+Height+Weight+Shucked.Weight+Viscera.Weight+Shell.Weight,fmcrab)
+lm11 <- lm(Age~Sex+Length+Diameter+Height+Weight+Shucked.Weight+Viscera.Weight+Shell.Weight,fmcrab)
+summary(lm11)
+pacman::p_load(MASS,car)
+boxcox(lm11,lambda=seq(-0.7,0.7,by=0.05))
+summary(powerTransform(lm11))
+lm12 <- lm(Age^(-0.21)~Sex+Length+Diameter+Height+Weight+Shucked.Weight+Viscera.Weight+Shell.Weight,fmcrab)
+summary(lm12)
+par(mfrow=c(2,2))
+plot(lm11,1:2)
+plot(lm12,1:2)
+shapiro.test(resid(lm12))
+ncvTest(lm12)
+
+#Transform some predictor variables
+lm13 <- lm(Age~Sex+Length+Diameter+Height+log(Weight)+log(Shucked.Weight)+log(Viscera.Weight)+log(Shell.Weight),crab)
+summary(lm13)
+plot(lm13,1:2)
+pacman::p_load(MASS,car)
+boxcox(lm13,lambda=seq(-0.7,0.7,by=0.05))
+summary(powerTransform(lm13))
+lm14 <- lm(Age^(-0.22)~Sex+Length+Diameter+Height+log(Weight)+log(Shucked.Weight)+log(Viscera.Weight)+log(Shell.Weight),crab)
+summary(lm14)
+plot(lm14,1:2)
+shapiro.test(resid(lm14))
+ncvTest(lm14)
+```
+
+|                                     |                  |                     |
+|-------------------------------------|------------------|---------------------|
+| ***Data***                          | ***Overall***    | ***Training(65%)*** |
+| **No. of Observations**             | 3889             | 2527                |
+| **Adjusted R-squared**              | 0.6049           | 0.6096              |
+| **Signs of Estimated Coefficients** | Same as Training | Same as Overall     |
+
+|                                   |                             |                            |
+|-----------------------------------|-----------------------------|----------------------------|
+| ***Model***                       | ***1***                     | ***2***                    |
+| **No. of Significant Predictors** | 7                           | 8                          |
+| **Adjusted R-Squared**            | 0.5415                      | 0.6049                     |
+| **Normality: shapiro.test**       | W=0.92972, p-value\<2.2e-16 | W=0.9843, p-value\<2.2e-16 |
+| **Constant Variance: ncvTest**    | p-value\<2.22e-16           | p-value=0.032343           |
+
++----------------------------+--------------+------------+
+| ***Variables***            | ***Mean/N*** | ***SD/%*** |
++----------------------------+--------------+------------+
+| **Sex**                    | 3889         | 100        |
+|                            |              |            |
+| **-male**                  | 1224         | 31         |
+|                            |              |            |
+| **-female**                | 1231         | 32         |
+|                            |              |            |
+| **-indeterminate**         | 1434         | 37         |
++----------------------------+--------------+------------+
+| **Length(feet)**           | 1.31         | 0.30       |
++----------------------------+--------------+------------+
+| **Diameter(feet)**         | 1.02         | 0.25       |
++----------------------------+--------------+------------+
+| **Height(feet)**           | 0.35         | 0.10       |
++----------------------------+--------------+------------+
+| **Weight(ounces)**         | 23.57        | 13.88      |
++----------------------------+--------------+------------+
+| **Shucked Weight(ounces)** | 10.21        | 6.27       |
++----------------------------+--------------+------------+
+| **Viscera Weight(ounces)** | 5.14         | 3.10       |
++----------------------------+--------------+------------+
+| **Shell Weight(ounces)**   | 6.79         | 3.94       |
++----------------------------+--------------+------------+
+| **Age(months)**            | 9.96         | 3.22       |
++----------------------------+--------------+------------+
+
+| ***Subset***                      | ***Female***               | ***Male***                  | ***Indeterminate***          |
+|-----------------------------------|----------------------------|-----------------------------|------------------------------|
+| **Lambda**                        | -0.5                       | 0 (log transformation)      | 0 (log transformation)       |
+| **No. of Significant Predictors** | 7                          | 6                           | 6                            |
+| **Adjusted R-squared**            | 0.3492                     | 0.4499                      | 0.6465                       |
+| **Normality: shapiro.test**       | W=0.99662, p-value=0.00938 | W=0.98987, p-value=2.075e-8 | W=0.96818, p-value=8.427e-16 |
+| **Constant Variance: ncvTest**    | p-value=0.33249            | p-value=0.21817             | p-value=0.0079948            |
